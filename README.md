@@ -28,7 +28,7 @@ vagrant up
 In WSL terminal:
 
 ```bash
-cd /mnt/c/Users/iacob/Documents/kubernetes_cluster-project
+cd /mnt/c/Users/iacob/Documents/k8s-local
 chmod +x copy_vagrant_keys.sh
 ./copy_vagrant_keys.sh
 ```
@@ -37,7 +37,7 @@ chmod +x copy_vagrant_keys.sh
 In WSL terminal:
 
 ```bash
-cd /mnt/c/Users/iacob/Documents/kubernetes_cluster-project/ansible-ubuntu
+cd /mnt/c/Users/iacob/Documents/k8s-local/ansible-ubuntu
 ansible-playbook -i inventory.ini playbook.yml
 ```
 
@@ -46,6 +46,8 @@ In WSL terminal:
 
 ```bash
 mkdir -p ~/.kube
+# Remove old SSH host key if VM was recreated
+ssh-keygen -f ~/.ssh/known_hosts -R 192.168.56.10
 scp -i ~/.ssh/vagrant_master-node vagrant@192.168.56.10:/home/vagrant/.kube/config ~/.kube/config
 chmod 600 ~/.kube/config
 ```
