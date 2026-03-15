@@ -2,20 +2,15 @@
 
 set -e  # Exit on first error
 
-master_node_ip_address="192.168.56.17"
-worker_node1_ip_address="192.168.56.18"
-worker_node2_ip_address="192.168.56.19"
+MASTER_IP="192.168.56.10"
+WORKER1_IP="192.168.56.11"
+WORKER2_IP="192.168.56.12"
 
 echo "➡️  Starting up VMs..."
 vagrant.exe up --provision
 
-echo "🔑 Removing old SSH fingerprints..."
-ssh-keygen -f "$HOME/.ssh/known_hosts" -R "$master_node_ip_address" || true
-ssh-keygen -f "$HOME/.ssh/known_hosts" -R "$worker_node1_ip_address" || true
-ssh-keygen -f "$HOME/.ssh/known_hosts" -R "$worker_node2_ip_address" || true
-
-echo "🔐 Fixing private key permissions..."
-chmod 600 ~/Documents/k8s-cluster/.vagrant/machines/*/virtualbox/private_key
+echo "🔑 Setting up SSH keys & config..."
+bash "$(dirname "$0")/setup-access.sh"
 
 # ✅ Function to check SSH port (22) reachability
 wait_for_ssh() {
@@ -33,9 +28,9 @@ wait_for_ssh() {
 }
 
 # 🧪 Check that all required nodes are reachable
-wait_for_ssh "$master_node_ip_address"
-wait_for_ssh "$worker_node1_ip_address"
-wait_for_ssh "$worker_node2_ip_address"
+wait_for_ssh "$MASTER_IP"
+wait_for_ssh "$WORKER1_IP"
+wait_for_ssh "$WORKER2_IP"
 
 echo "📡 Checking connectivity to all nodes with Ansible ping..."
 if ! ANSIBLE_HOST_KEY_CHECKING=False ansible -i ansible-ubuntu/inventory.ini all -m ping; then
@@ -50,5 +45,8 @@ if ! ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i ansible-ubuntu/inventor
   exit 1
 fi
 
+# 🔑 Fetch kubeconfig now that the cluster is up
+echo "📋 Fetching kubeconfig from master..."
+bash "$(dirname "$0")/setup-access.sh"
 
-echo "✅ Ansible playbook executed successfully."
+echo "✅ Cluster is ready! Try: kubectl get nodes"

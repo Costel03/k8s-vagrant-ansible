@@ -37,7 +37,7 @@
   become: true
 
 # ---------------------------------------------------------------------
-# Install Containerd (version 1.6.27) and configure SystemdCgroup
+# Install Containerd (version 1.7.23) and configure SystemdCgroup
 # ---------------------------------------------------------------------
 
 - name: Remove existing containerd and config

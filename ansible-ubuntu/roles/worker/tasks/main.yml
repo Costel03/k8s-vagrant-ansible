@@ -18,14 +18,14 @@
     enabled: true
 
 - name: Wait for kubeadm join script to be created on master
-  delegate_to: master-node
+  delegate_to: k8s-master
   wait_for:
     path: /home/vagrant/kubeadm-join.sh
     state: present
     timeout: 300
 
 - name: Fetch kubeadm join script from master
-  delegate_to: master-node
+  delegate_to: k8s-master
   fetch:
     src: /home/vagrant/kubeadm-join.sh
     dest: /tmp/kubeadm-join.sh
@@ -54,7 +54,7 @@
 
 - name: Fetch kubeconfig from master (for local vagrant usage)
   become: true
-  delegate_to: master-node
+  delegate_to: k8s-master
   fetch:
     src: /etc/kubernetes/admin.conf
     dest: /tmp/admin.conf

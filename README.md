@@ -1,93 +1,159 @@
-## This is a K8-cluster deployment project. This set up was done with Windows WSL.  
+# Kubernetes Cluster with Vagrant & Ansible
 
-- We are deploying a kubernetes cluster using 3 VMs provisioned by Vagrant and ansible for configuration. 
+Deploy a 3-node Kubernetes cluster on VirtualBox VMs using Vagrant for provisioning and Ansible for configuration. Designed for a **Windows + WSL** workflow.
 
-        - Step 1: Update and Upgrade Ubuntu (all nodes)
-        - Step 2: Disable Swap (all nodes)
-        - Step 3: Add Kernel Parameters (all nodes)
-        - Step 4: Install Containerd Runtime (all nodes)
-        - Step 5: Add Apt Repository for Kubernetes (all nodes)
-        - Step 6: Install Kubectl, Kubeadm, and Kubelet (all nodes)
-        - Step 7: Initialize Kubernetes Cluster with Kubeadm (master node)
-        - Step 8: Add Worker Nodes to the Cluster (worker nodes)
-        - Step 9: Install Kubernetes Network Plugin (master node)
-        - Step 10: Verify the cluster and test (master node)
+## Cluster Overview
 
+| Node | IP | Resources |
+|---|---|---|
+| k8s-master | 192.168.56.10 | 6 GB RAM, 3 CPUs |
+| k8s-worker1 | 192.168.56.11 | 4 GB RAM, 3 CPUs |
+| k8s-worker2 | 192.168.56.12 | 4 GB RAM, 3 CPUs |
 
-## Windows + WSL Workflow
+**Stack:** Ubuntu 22.04 (Jammy), Kubernetes v1.35.2, Containerd 1.7.23, Calico v3.29.1
 
-### 1. VM Provisioning (Windows)
-Open PowerShell or CMD in your project directory:
+## Prerequisites
 
-```bash
+- [VirtualBox](https://www.virtualbox.org/) installed on Windows
+- [Vagrant](https://www.vagrantup.com/) installed on Windows
+- WSL2 with Ubuntu (or similar)
+- Ansible installed in WSL (`pip install ansible` or `apt install ansible`)
+
+Install the required Vagrant plugin (once, from PowerShell):
+```powershell
 vagrant plugin install vagrant-hostmanager
-vagrant up
 ```
 
-### 2. Copy Vagrant SSH Keys to WSL
-In WSL terminal:
+## Quick Start (automated)
+
+Run everything with a single script from **WSL**:
 
 ```bash
-cd /mnt/c/Users/iacob/Documents/k8s-local
-chmod +x copy_vagrant_keys.sh
-./copy_vagrant_keys.sh
+cd /mnt/c/Users/iacob/Documents/repos/k8s-vagrant-ansible
+chmod +x start-cluster.sh setup-access.sh
+bash start-cluster.sh
 ```
 
-### 3. Run Ansible Playbook from WSL
-In WSL terminal:
+This script will:
+1. Create the VMs with `vagrant up`
+2. Copy SSH keys & configure SSH aliases (`setup-access.sh`)
+3. Wait for all nodes to be reachable
+4. Run the Ansible playbook to deploy Kubernetes
+5. Fetch the kubeconfig to `~/.kube/config`
 
-```bash
-cd /mnt/c/Users/iacob/Documents/k8s-local/ansible-ubuntu
-ansible-playbook -i inventory.ini playbook.yml
-```
-
-### 4. Copy kubeconfig for kubectl in WSL
-In WSL terminal:
-
-```bash
-mkdir -p ~/.kube
-# Remove old SSH host key if VM was recreated
-ssh-keygen -f ~/.ssh/known_hosts -R 192.168.56.10
-scp -i ~/.ssh/vagrant_master-node vagrant@192.168.56.10:/home/vagrant/.kube/config ~/.kube/config
-chmod 600 ~/.kube/config
-```
-
-### 5. Use kubectl from WSL
+When it finishes you can immediately run:
 ```bash
 kubectl get nodes
 ```
 
-### 6. Troubleshooting
-- If you need to reset the cluster, SSH to master node and run:
+## Step-by-Step (manual)
+
+### 1. Create the VMs (PowerShell)
+
+```powershell
+cd C:\Users\iacob\Documents\repos\k8s-vagrant-ansible
+vagrant up
+```
+
+### 2. Set up SSH access & keys (WSL)
+
 ```bash
-ssh -i ~/.ssh/vagrant_master-node vagrant@192.168.56.10
+cd /mnt/c/Users/iacob/Documents/repos/k8s-vagrant-ansible
+chmod +x setup-access.sh
+bash setup-access.sh
+```
+
+This copies the Vagrant private keys and writes `~/.ssh/config` entries so you can connect with just:
+```bash
+ssh k8s-master
+ssh k8s-worker1
+ssh k8s-worker2
+```
+
+### 3. Deploy Kubernetes with Ansible (WSL)
+
+```bash
+cd /mnt/c/Users/iacob/Documents/repos/k8s-vagrant-ansible
+ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i ansible-ubuntu/inventory.ini ansible-ubuntu/playbook.yml
+```
+
+### 4. Fetch the kubeconfig (WSL)
+
+Run `setup-access.sh` again — now that the cluster is initialized it will also copy the kubeconfig:
+
+```bash
+bash setup-access.sh
+```
+
+### 5. Verify
+
+```bash
+kubectl get nodes
+```
+
+## What the Ansible Playbook Does
+
+| Step | Scope | Description |
+|---|---|---|
+| 1 | All nodes | Disable swap |
+| 2 | All nodes | Load kernel modules (`overlay`, `br_netfilter`) |
+| 3 | All nodes | Apply sysctl networking parameters |
+| 4 | All nodes | Install Containerd 1.7.23 with SystemdCgroup |
+| 5 | All nodes | Add Kubernetes v1.35 apt repository |
+| 6 | All nodes | Install kubelet, kubeadm, kubectl |
+| 7 | Master | Initialize control plane with `kubeadm init` |
+| 8 | Master | Install Calico CNI |
+| 9 | Workers | Join the cluster using `kubeadm join` |
+
+## Project Structure
+
+```
+.
+├── Vagrantfile              # VM definitions (k8s-master, k8s-worker1, k8s-worker2)
+├── start-cluster.sh         # One-command full deployment (WSL)
+├── setup-access.sh          # Copy SSH keys, configure aliases, fetch kubeconfig
+├── ansible-ubuntu/
+│   ├── inventory.ini        # Ansible host inventory
+│   ├── playbook.yml         # Main playbook
+│   ├── group_vars/
+│   │   └── all.yml          # Kubernetes version variable
+│   └── roles/
+│       ├── common/tasks/    # Shared setup (containerd, k8s packages)
+│       ├── master/tasks/    # Control plane init, Calico, join token
+│       └── worker/tasks/    # Join cluster, copy kubeconfig
+```
+
+## Troubleshooting
+
+### Reset the cluster
+SSH into the master and reset:
+```bash
+ssh k8s-master
 sudo kubeadm reset -f
 sudo rm -rf /etc/kubernetes/* /var/lib/etcd /var/lib/kubelet/* /root/.kube
 sudo reboot
 ```
+Then re-run the Ansible playbook.
 
-Re-run the Ansible playbook after reboot.
+### Destroy and rebuild from scratch
+```powershell
+# PowerShell
+vagrant destroy -f
+vagrant up
+```
+```bash
+# WSL
+bash start-cluster.sh
+```
 
-## Once deplooyment is completed: export the kube config file
+### Stale Vagrant state after renaming VMs
+If you see errors about old machine names, remove leftover state:
+```bash
+rm -rf /mnt/c/Users/iacob/Documents/repos/k8s-vagrant-ansible/.vagrant/machines/<old-name>
+```
 
-        (Handled automatically by Ansible playbook)
-
-## Steps to add worker node to cluster
-
-        (Handled automatically by Ansible playbook and SSH key copy script)
-
-    - Use the below command to generate the token and command for worker node to join the cluster 
-
-        - To join worker nodes, SSH to master node and run:
-        ```bash
-        kubeadm token create --print-join-command
-        ```
-        - Label worker nodes:
-        ```bash
-        kubectl label node worker-node1 node-role.kubernetes.io/worker=worker
-        ```
-
-
-    - Use the below command sequence to reset your cluster and remove the config set up 
-
-        (See troubleshooting section above)
+### Label worker nodes
+```bash
+kubectl label node k8s-worker1 node-role.kubernetes.io/worker=worker
+kubectl label node k8s-worker2 node-role.kubernetes.io/worker=worker
+```
