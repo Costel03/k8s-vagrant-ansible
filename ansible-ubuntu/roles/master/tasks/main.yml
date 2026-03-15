@@ -23,7 +23,7 @@
     kubeadm init \
       --apiserver-advertise-address=192.168.56.10 \
       --pod-network-cidr=192.168.0.0/16 \
-      --kubernetes-version=1.28.15 \
+      --kubernetes-version={{ kubernetes_version }} \
       --cri-socket=unix:///run/containerd/containerd.sock | tee /root/kubeadm-init.out
   args:
     executable: /bin/bash
@@ -63,7 +63,7 @@
 - name: Apply Calico CNI
   shell: |
     export KUBECONFIG=/etc/kubernetes/admin.conf
-    kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.25.0/manifests/calico.yaml
+    kubectl apply -f https://raw.githubusercontent.com/projectcalico/calico/v3.29.1/manifests/calico.yaml
   when: calico_status.rc != 0
 
 - name: Save kubeadm join command

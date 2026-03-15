@@ -43,8 +43,8 @@
 - name: Remove existing containerd and config
   apt:
     name:
-      - containerd
-      - containerd.io
+    - containerd
+    - containerd.io
     state: absent
   ignore_errors: true
 
@@ -54,25 +54,25 @@
     state: absent
   ignore_errors: true
 
-- name: Download containerd 1.6.27 package
+- name: Download containerd 1.7.23 package
   get_url:
-    url: https://download.docker.com/linux/ubuntu/dists/jammy/pool/stable/amd64/containerd.io_1.6.27-1_amd64.deb
-    dest: /tmp/containerd.io_1.6.27-1_amd64.deb
+    url: https://download.docker.com/linux/ubuntu/dists/jammy/pool/stable/amd64/containerd.io_1.7.23-1_amd64.deb
+    dest: /tmp/containerd.io_1.7.23-1_amd64.deb
     mode: '0644'
 
-- name: Install containerd 1.6.27
+- name: Install containerd 1.7.23
   apt:
-    deb: /tmp/containerd.io_1.6.27-1_amd64.deb
+    deb: /tmp/containerd.io_1.7.23-1_amd64.deb
 
 - name: Generate default containerd config (force overwrite)
   shell: containerd config default > /etc/containerd/config.toml
   become: true
 
-- name: Set sandbox_image to pause:3.9
+- name: Set sandbox_image to pause:3.10
   replace:
     path: /etc/containerd/config.toml
     regexp: '^(\s*)sandbox_image = ".*"'
-    replace: '\1sandbox_image = "registry.k8s.io/pause:3.9"'
+    replace: '\1sandbox_image = "registry.k8s.io/pause:3.10"'
 
 - name: Ensure CRI plugin block exists in containerd config
   lineinfile:
@@ -118,13 +118,13 @@
 
 - name: Add Kubernetes GPG key
   shell: |
-    curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.28/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
+    curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.35/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
   args:
     creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
 
 - name: Add Kubernetes apt repo
   apt_repository:
-    repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.28/deb/ /"
+    repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.35/deb/ /"
     state: present
     filename: kubernetes
     update_cache: yes
@@ -132,9 +132,9 @@
 - name: Install Kubernetes components
   apt:
     name:
-      - kubelet
-      - kubeadm
-      - kubectl
+    - kubelet
+    - kubeadm
+    - kubectl
     state: present
     update_cache: yes
 
@@ -143,9 +143,9 @@
     name: "{{ item }}"
     selection: hold
   loop:
-    - kubelet
-    - kubeadm
-    - kubectl
+  - kubelet
+  - kubeadm
+  - kubectl
 
 - name: Enable and start kubelet
   systemd:
