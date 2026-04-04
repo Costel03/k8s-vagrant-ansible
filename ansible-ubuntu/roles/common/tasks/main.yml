@@ -1,4 +1,20 @@
 ---
+- name: Install and sync chrony (fixes VirtualBox clock drift under Hyper-V)
+  apt:
+    name: chrony
+    state: present
+    update_cache: yes
+
+- name: Enable chrony service
+  systemd:
+    name: chronyd
+    state: started
+    enabled: true
+
+- name: Force immediate clock sync
+  command: chronyc makestep
+  become: true
+
 - name: Disable swap (required by Kubernetes)
   shell: |
     swapoff -a
@@ -37,7 +53,7 @@
   become: true
 
 # ---------------------------------------------------------------------
-# Install Containerd (version 1.7.23) and configure SystemdCgroup
+# Install Containerd via Docker apt repo and configure SystemdCgroup
 # ---------------------------------------------------------------------
 
 - name: Remove existing containerd and config
@@ -54,25 +70,34 @@
     state: absent
   ignore_errors: true
 
-- name: Download containerd 1.7.23 package
-  get_url:
-    url: https://download.docker.com/linux/ubuntu/dists/jammy/pool/stable/amd64/containerd.io_1.7.23-1_amd64.deb
-    dest: /tmp/containerd.io_1.7.23-1_amd64.deb
-    mode: '0644'
+- name: Add Docker GPG key
+  shell: |
+    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+  args:
+    creates: /etc/apt/keyrings/docker.gpg
 
-- name: Install containerd 1.7.23
+- name: Add Docker apt repo
+  apt_repository:
+    repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
+    state: present
+    filename: docker
+    update_cache: yes
+
+- name: Install containerd.io
   apt:
-    deb: /tmp/containerd.io_1.7.23-1_amd64.deb
+    name: containerd.io
+    state: present
+    update_cache: yes
 
 - name: Generate default containerd config (force overwrite)
   shell: containerd config default > /etc/containerd/config.toml
   become: true
 
-- name: Set sandbox_image to pause:3.10
+- name: Set sandbox_image to pause:3.10.1
   replace:
     path: /etc/containerd/config.toml
     regexp: '^(\s*)sandbox_image = ".*"'
-    replace: '\1sandbox_image = "registry.k8s.io/pause:3.10"'
+    replace: '\1sandbox_image = "registry.k8s.io/pause:3.10.1"'
 
 - name: Ensure CRI plugin block exists in containerd config
   lineinfile:

@@ -1,0 +1,24 @@
+VAGRANTFILE_API_VERSION = "2"
+
+Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
+  config.vm.box = "bento/ubuntu-24.04"
+  config.vm.hostname = "k8s-base"
+  config.vm.synced_folder ".", "/vagrant", disabled: true
+
+  config.vm.provider :virtualbox do |v|
+    v.name   = "k8s-base-template"
+    v.memory = 2048
+    v.cpus   = 2
+    v.customize ["modifyvm", :id, "--paravirtprovider", "hyperv"]
+    v.customize ["modifyvm", :id, "--nested-hw-virt", "on"]
+  end
+
+  config.vm.provision "shell", inline: <<-SHELL
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -y
+    apt-get upgrade -yq
+    apt-get install -y python3 python3-pip python-is-python3
+    apt-get clean
+    rm -rf /var/lib/apt/lists/*
+  SHELL
+end

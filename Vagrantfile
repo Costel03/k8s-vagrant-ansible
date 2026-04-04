@@ -8,9 +8,9 @@ NODES = [
 ]
 
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
-  config.vm.box = "ubuntu/jammy64"
+  config.vm.box = "k8s-base"
   config.hostmanager.enabled = true
-  config.hostmanager.manage_host = true
+  config.hostmanager.manage_host = false
 
   NODES.each do |node_cfg|
     config.vm.define node_cfg[:name] do |node|
@@ -19,17 +19,13 @@ Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
       node.vm.synced_folder ".", "/vagrant", disabled: true
 
       node.vm.provider :virtualbox do |v|
-        v.name   = node_cfg[:name]
-        v.memory = node_cfg[:memory]
-        v.cpus   = node_cfg[:cpus]
+        v.name         = node_cfg[:name]
+        v.memory       = node_cfg[:memory]
+        v.cpus         = node_cfg[:cpus]
+        v.linked_clone = true
+        v.customize ["modifyvm", :id, "--paravirtprovider", "hyperv"]
+        v.customize ["modifyvm", :id, "--nested-hw-virt", "on"]
       end
-
-      node.vm.provision "shell", inline: <<-SHELL
-        export DEBIAN_FRONTEND=noninteractive
-        apt-get update -y
-        apt-get upgrade -yq
-        apt-get install -y python3 python3-pip python-is-python3
-      SHELL
     end
   end
 end

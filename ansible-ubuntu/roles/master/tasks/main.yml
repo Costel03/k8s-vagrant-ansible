@@ -16,6 +16,11 @@
     state: present
     timeout: 60
 
+- name: Force clock sync before kubeadm init
+  command: chronyc makestep
+  become: true
+  when: not kubeadm_config.stat.exists
+
 - name: Initialize Kubernetes control plane
   become: true
   shell: |

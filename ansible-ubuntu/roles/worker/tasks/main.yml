@@ -52,26 +52,10 @@
     path: /etc/kubernetes/kubelet.conf
     timeout: 60
 
-- name: Fetch kubeconfig from master (for local vagrant usage)
-  become: true
-  delegate_to: k8s-master
-  fetch:
-    src: /etc/kubernetes/admin.conf
-    dest: /tmp/admin.conf
-    flat: yes
-
 - name: Create .kube directory for vagrant user
   file:
     path: /home/vagrant/.kube
     state: directory
     mode: '0755'
-    owner: vagrant
-    group: vagrant
-
-- name: Copy kubeconfig to worker node's kube directory
-  copy:
-    src: /tmp/admin.conf
-    dest: /home/vagrant/.kube/config
-    mode: '0644'
     owner: vagrant
     group: vagrant
