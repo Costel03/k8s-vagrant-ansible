@@ -27,7 +27,7 @@
     set -o pipefail
     kubeadm init \
       --apiserver-advertise-address=192.168.56.10 \
-      --pod-network-cidr=192.168.0.0/16 \
+      --pod-network-cidr=10.244.0.0/16 \
       --kubernetes-version={{ kubernetes_version }} \
       --cri-socket=unix:///run/containerd/containerd.sock | tee /root/kubeadm-init.out
   args:
