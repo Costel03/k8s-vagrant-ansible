@@ -19,7 +19,7 @@ Deploy a 3-node Kubernetes cluster on VirtualBox VMs using Vagrant for provision
 - WSL2 with Ubuntu (or similar)
 - Ansible installed in WSL (`pip install ansible` or `apt install ansible`)
 
-Install the required Vagrant plugin (once, from PowerShell):
+Install the required Vagrant plugin once (PowerShell):
 ```powershell
 vagrant plugin install vagrant-hostmanager
 ```
@@ -51,45 +51,56 @@ kubectl get nodes
 ### 1. Create the VMs (PowerShell)
 
 ```powershell
+# PowerShell
 cd C:\Users\iacob\Documents\repos\k8s-vagrant-ansible
 vagrant up
 ```
 
-### 2. Set up SSH access & keys (WSL)
+Then unseal Vault (always required after restart):
 
 ```bash
-cd /mnt/c/Users/iacob/Documents/repos/k8s-vagrant-ansible
-chmod +x setup-access.sh
-bash setup-access.sh
+kubectl exec -n hashicorp-vault vault-0 -- vault operator unseal <key-1>
+kubectl exec -n hashicorp-vault vault-0 -- vault operator unseal <key-2>
+kubectl exec -n hashicorp-vault vault-0 -- vault operator unseal <key-3>
 ```
 
-This copies the Vagrant private keys and writes `~/.ssh/config` entries so you can connect with just:
-```bash
-ssh k8s-master
-ssh k8s-worker1
-ssh k8s-worker2
+ArgoCD will automatically resync all other apps once Vault is unsealed and ESO recovers.
+
+### Destroy and recreate cluster from scratch
+
+```powershell
+# PowerShell
+cd C:\Users\iacob\Documents\repos\k8s-vagrant-ansible
+vagrant destroy -f
+vagrant up
 ```
-
-### 3. Deploy Kubernetes with Ansible (WSL)
-
-```bash
-cd /mnt/c/Users/iacob/Documents/repos/k8s-vagrant-ansible
-ANSIBLE_HOST_KEY_CHECKING=False ansible-playbook -i ansible-ubuntu/inventory.ini ansible-ubuntu/playbook.yml
-```
-
-### 4. Fetch the kubeconfig (WSL)
-
-Run `setup-access.sh` again — now that the cluster is initialized it will also copy the kubeconfig:
 
 ```bash
-bash setup-access.sh
+# WSL
+./bootstrap-cluster.sh
+# Then repeat Steps 3–4 (init/unseal Vault, recreate vault-token secret)
 ```
 
-### 5. Verify
+### Get ArgoCD admin password
 
 ```bash
-kubectl get nodes
+kubectl -n argocd get secret argocd-initial-admin-secret \
+  -o jsonpath="{.data.password}" | base64 -d && echo
 ```
+
+### Check all application health
+
+```bash
+kubectl get applications -n argocd
+```
+
+### View all LoadBalancer IPs
+
+```bash
+kubectl get svc -A | grep LoadBalancer
+```
+
+---
 
 ## What the Ansible Playbook Does
 

@@ -21,6 +21,14 @@
   become: true
   when: not kubeadm_config.stat.exists
 
+- name: Reset any partial kubeadm state before init
+  become: true
+  shell: |
+    kubeadm reset -f
+    rm -rf /etc/kubernetes/manifests /etc/kubernetes/pki /var/lib/etcd
+  when: not kubeadm_config.stat.exists
+  ignore_errors: true
+
 - name: Initialize Kubernetes control plane
   become: true
   shell: |

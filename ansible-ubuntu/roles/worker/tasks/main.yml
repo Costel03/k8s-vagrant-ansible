@@ -4,6 +4,14 @@
   command: kubeadm reset -f
   ignore_errors: true
 
+- name: Delete stale node object from API server (allows clean re-join)
+  delegate_to: k8s-master
+  become: true
+  shell: |
+    kubectl --kubeconfig=/etc/kubernetes/admin.conf \
+      delete node {{ inventory_hostname }} --ignore-not-found=true
+  changed_when: false
+
 - name: Remove old CNI configuration (for a clean state)
   become: true
   file:

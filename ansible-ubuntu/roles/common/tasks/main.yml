@@ -1,7 +1,9 @@
 ---
 - name: Install and sync chrony (fixes VirtualBox clock drift under Hyper-V)
   apt:
-    name: chrony
+    name:
+    - chrony
+    - nfs-common
     state: present
     update_cache: yes
 
