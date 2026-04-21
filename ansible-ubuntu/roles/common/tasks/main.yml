@@ -55,6 +55,29 @@
   become: true
 
 # ---------------------------------------------------------------------
+# Switch to iptables-legacy (required by Calico on Ubuntu 22.04+)
+# ---------------------------------------------------------------------
+
+- name: Install iptables alternatives
+  apt:
+    name:
+    - iptables
+    - arptables
+    - ebtables
+    state: present
+    update_cache: yes
+
+- name: Set iptables to legacy mode
+  alternatives:
+    name: "{{ item.name }}"
+    path: "{{ item.path }}"
+  loop:
+  - { name: iptables, path: /usr/sbin/iptables-legacy }
+  - { name: ip6tables, path: /usr/sbin/ip6tables-legacy }
+  - { name: arptables, path: /usr/sbin/arptables-legacy }
+  - { name: ebtables, path: /usr/sbin/ebtables-legacy }
+
+# ---------------------------------------------------------------------
 # Install Containerd via Docker apt repo and configure SystemdCgroup
 # ---------------------------------------------------------------------
 

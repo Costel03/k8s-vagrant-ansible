@@ -2,9 +2,9 @@ VAGRANTFILE_API_VERSION = "2"
 
 # Node definitions – easy to add/remove nodes
 NODES = [
-  { name: "k8s-master",  ip: "192.168.56.10", memory: 6144, cpus: 3 },
-  { name: "k8s-worker1", ip: "192.168.56.11", memory: 4096, cpus: 3 },
-  { name: "k8s-worker2", ip: "192.168.56.12", memory: 4096, cpus: 3 },
+  { name: "k8s-master",  ip: "192.168.56.10", memory: 4096, cpus: 2},
+  { name: "k8s-worker1", ip: "192.168.56.11", memory: 4096, cpus: 2 },
+  { name: "k8s-worker2", ip: "192.168.56.12", memory: 4096, cpus: 2 },
 ]
 
 Vagrant.configure(VAGRANTFILE_API_VERSION) do |config|
