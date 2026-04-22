@@ -1,13 +1,9 @@
 ---
-- name: Install and sync chrony (fixes VirtualBox clock drift under Hyper-V)
-  apt:
-    name:
-    - chrony
-    - nfs-common
-    state: present
-    update_cache: yes
+# All packages (containerd, kubelet, kubeadm, kubectl, chrony, iptables-legacy,
+# kernel module config, sysctl config, containerd config) are pre-baked into the
+# base box via build-base-box.sh. This role only handles runtime configuration.
 
-- name: Enable chrony service
+- name: Enable and start chrony
   systemd:
     name: chronyd
     state: started
@@ -17,185 +13,46 @@
   command: chronyc makestep
   become: true
 
-- name: Disable swap (required by Kubernetes)
-  shell: |
-    swapoff -a
-    sed -i '/ swap / s/^/#/' /etc/fstab
+- name: Disable swap at runtime (fstab already patched in base box)
+  command: swapoff -a
   become: true
 
-- name: Load kernel modules config
-  copy:
-    dest: /etc/modules-load.d/containerd.conf
-    content: |
-      overlay
-      br_netfilter
-    mode: '0644'
-
-- name: Load overlay module
+- name: Load overlay kernel module
   modprobe:
     name: overlay
     state: present
 
-- name: Load br_netfilter module
+- name: Load br_netfilter kernel module
   modprobe:
     name: br_netfilter
     state: present
-
-- name: Apply sysctl parameters for Kubernetes networking
-  copy:
-    dest: /etc/sysctl.d/kubernetes.conf
-    content: |
-      net.bridge.bridge-nf-call-ip6tables = 1
-      net.bridge.bridge-nf-call-iptables = 1
-      net.ipv4.ip_forward = 1
-    mode: '0644'
 
 - name: Reload sysctl
   command: sysctl --system
   become: true
 
-# ---------------------------------------------------------------------
-# Switch to iptables-legacy (required by Calico on Ubuntu 22.04+)
-# ---------------------------------------------------------------------
+# Wipe containerd state from the linked-clone base image so each node
+# starts with a clean runtime (no stale container name conflicts).
+- name: Stop containerd before wiping state
+  systemd:
+    name: containerd
+    state: stopped
 
-- name: Install iptables alternatives
-  apt:
-    name:
-    - iptables
-    - arptables
-    - ebtables
-    state: present
-    update_cache: yes
-
-- name: Set iptables to legacy mode
-  alternatives:
-    name: "{{ item.name }}"
-    path: "{{ item.path }}"
-  loop:
-  - { name: iptables, path: /usr/sbin/iptables-legacy }
-  - { name: ip6tables, path: /usr/sbin/ip6tables-legacy }
-  - { name: arptables, path: /usr/sbin/arptables-legacy }
-  - { name: ebtables, path: /usr/sbin/ebtables-legacy }
-
-# ---------------------------------------------------------------------
-# Install Containerd via Docker apt repo and configure SystemdCgroup
-# ---------------------------------------------------------------------
-
-- name: Remove existing containerd and config
-  apt:
-    name:
-    - containerd
-    - containerd.io
-    state: absent
-  ignore_errors: true
-
-- name: Remove old containerd config directory
+- name: Wipe containerd state database
   file:
-    path: /etc/containerd
+    path: /var/lib/containerd
     state: absent
-  ignore_errors: true
-
-- name: Add Docker GPG key
-  shell: |
-    curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg
-  args:
-    creates: /etc/apt/keyrings/docker.gpg
-
-- name: Add Docker apt repo
-  apt_repository:
-    repo: "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu {{ ansible_distribution_release }} stable"
-    state: present
-    filename: docker
-    update_cache: yes
-
-- name: Install containerd.io
-  apt:
-    name: containerd.io
-    state: present
-    update_cache: yes
-
-- name: Generate default containerd config (force overwrite)
-  shell: containerd config default > /etc/containerd/config.toml
   become: true
 
-- name: Set sandbox_image to pause:3.10.1
-  replace:
-    path: /etc/containerd/config.toml
-    regexp: '^(\s*)sandbox_image = ".*"'
-    replace: '\1sandbox_image = "registry.k8s.io/pause:3.10.1"'
-
-- name: Ensure CRI plugin block exists in containerd config
-  lineinfile:
-    path: /etc/containerd/config.toml
-    regexp: '^#?version ='
-    line: 'version = 2'
-    state: present
-
-- name: Set SystemdCgroup = true in containerd config
-  replace:
-    path: /etc/containerd/config.toml
-    regexp: '^(\s*)SystemdCgroup = false'
-    replace: '\1SystemdCgroup = true'
-
-- name: Reexec systemd to avoid containerd reload issues
+- name: Reexec systemd
   command: systemctl daemon-reexec
+  become: true
 
 - name: Restart and enable containerd
   systemd:
     name: containerd
     state: restarted
     enabled: true
-
-- name: Configure crictl to use containerd
-  copy:
-    dest: /etc/crictl.yaml
-    content: |
-      runtime-endpoint: unix:///run/containerd/containerd.sock
-      image-endpoint: unix:///run/containerd/containerd.sock
-      timeout: 10
-      debug: false
-    mode: '0644'
-
-# ---------------------------------------------------------------------
-# Kubernetes APT Repository & Package Setup
-# ---------------------------------------------------------------------
-
-- name: Ensure apt keyrings directory exists
-  file:
-    path: /etc/apt/keyrings
-    state: directory
-    mode: '0755'
-
-- name: Add Kubernetes GPG key
-  shell: |
-    curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.35/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-  args:
-    creates: /etc/apt/keyrings/kubernetes-apt-keyring.gpg
-
-- name: Add Kubernetes apt repo
-  apt_repository:
-    repo: "deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.35/deb/ /"
-    state: present
-    filename: kubernetes
-    update_cache: yes
-
-- name: Install Kubernetes components
-  apt:
-    name:
-    - kubelet
-    - kubeadm
-    - kubectl
-    state: present
-    update_cache: yes
-
-- name: Hold Kubernetes versions
-  dpkg_selections:
-    name: "{{ item }}"
-    selection: hold
-  loop:
-  - kubelet
-  - kubeadm
-  - kubectl
 
 - name: Enable and start kubelet
   systemd:
