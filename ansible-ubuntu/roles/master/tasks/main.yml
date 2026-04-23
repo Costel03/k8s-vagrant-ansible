@@ -104,3 +104,37 @@
     mode: '0755'
     owner: vagrant
     group: vagrant
+
+# ---------------------------------------------------------------------
+# NFS Server — exports /share for the nfs-subdir-external-provisioner
+# ---------------------------------------------------------------------
+
+- name: Install nfs-kernel-server
+  apt:
+    name: nfs-kernel-server
+    state: present
+    update_cache: yes
+
+- name: Create /share export directory
+  file:
+    path: /share
+    state: directory
+    owner: nobody
+    group: nogroup
+    mode: '0777'
+
+- name: Export /share via NFS to cluster subnet
+  lineinfile:
+    path: /etc/exports
+    line: '/share 192.168.56.0/24(rw,sync,no_subtree_check,no_root_squash)'
+    regexp: '^/share'
+    state: present
+
+- name: Enable and start nfs-kernel-server
+  systemd:
+    name: nfs-kernel-server
+    state: started
+    enabled: true
+
+- name: Re-export NFS shares
+  command: exportfs -ra

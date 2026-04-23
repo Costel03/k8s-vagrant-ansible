@@ -3,6 +3,12 @@
 # kernel module config, sysctl config, containerd config) are pre-baked into the
 # base box via build-base-box.sh. This role only handles runtime configuration.
 
+- name: Ensure nfs-common is installed (needed for NFS PVC mounts)
+  apt:
+    name: nfs-common
+    state: present
+    update_cache: yes
+
 - name: Enable and start chrony
   systemd:
     name: chronyd

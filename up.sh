@@ -31,8 +31,8 @@ echo "==> Copying SSH keys..."
 for vm in "${NODES[@]}"; do
     KEY_SRC="$VAGRANT_MACHINES/$vm/virtualbox/private_key"
     if [[ -f "$KEY_SRC" ]]; then
-        cp "$KEY_SRC" "$SSH_DIR/$vm"
-        chmod 600 "$SSH_DIR/$vm"
+        # Copy to WSL home (not /mnt/c) so chmod 600 works on ext4, not NTFS
+        install -m 600 "$KEY_SRC" "$SSH_DIR/$vm"
         echo "    $vm ✔"
     else
         echo "ERROR: key not found at $KEY_SRC"
