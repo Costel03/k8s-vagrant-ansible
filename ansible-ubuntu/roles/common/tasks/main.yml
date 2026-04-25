@@ -19,8 +19,15 @@
   command: chronyc makestep
   become: true
 
-- name: Disable swap at runtime (fstab already patched in base box)
+- name: Disable swap at runtime
   command: swapoff -a
+  become: true
+
+- name: Remove swap entry from fstab (prevents swap re-enabling on reboot)
+  replace:
+    path: /etc/fstab
+    regexp: '^([^#].*\sswap\s.*)$'
+    replace: '# \1'
   become: true
 
 - name: Load overlay kernel module
