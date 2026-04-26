@@ -61,6 +61,92 @@
   command: systemctl daemon-reexec
   become: true
 
+# ── Container registry mirrors ───────────────────────────────────────────────
+# Enable certs.d so containerd uses per-registry hosts.toml files.
+# Containerd falls back to the original registry if the mirror is unreachable.
+- name: Enable containerd registry config_path for certs.d
+  replace:
+    path: /etc/containerd/config.toml
+    regexp: 'config_path = ""'
+    replace: 'config_path = "/etc/containerd/certs.d"'
+  become: true
+
+- name: Create containerd certs.d registry directories
+  file:
+    path: "/etc/containerd/certs.d/{{ item }}"
+    state: directory
+    mode: '0755'
+  become: true
+  loop:
+  - docker.io
+  - ghcr.io
+  - quay.io
+  - registry.k8s.io
+  - zot.local
+
+- name: Configure containerd mirror — docker.io → zot.local
+  copy:
+    dest: /etc/containerd/certs.d/docker.io/hosts.toml
+    content: |
+      server = "https://registry-1.docker.io"
+
+      [host."https://192.168.56.23"]
+        capabilities = ["pull", "resolve"]
+        skip_verify = true
+  become: true
+
+- name: Configure containerd mirror — ghcr.io → zot.local
+  copy:
+    dest: /etc/containerd/certs.d/ghcr.io/hosts.toml
+    content: |
+      server = "https://ghcr.io"
+
+      [host."https://192.168.56.23"]
+        capabilities = ["pull", "resolve"]
+        skip_verify = true
+  become: true
+
+- name: Configure containerd mirror — quay.io → zot.local
+  copy:
+    dest: /etc/containerd/certs.d/quay.io/hosts.toml
+    content: |
+      server = "https://quay.io"
+
+      [host."https://192.168.56.23"]
+        capabilities = ["pull", "resolve"]
+        skip_verify = true
+  become: true
+
+- name: Configure containerd mirror — registry.k8s.io → zot.local
+  copy:
+    dest: /etc/containerd/certs.d/registry.k8s.io/hosts.toml
+    content: |
+      server = "https://registry.k8s.io"
+
+      [host."https://192.168.56.23"]
+        capabilities = ["pull", "resolve"]
+        skip_verify = true
+  become: true
+
+- name: Configure containerd direct access for zot.local
+  copy:
+    dest: /etc/containerd/certs.d/zot.local/hosts.toml
+    content: |
+      server = "https://zot.local"
+
+      [host."https://192.168.56.23"]
+        capabilities = ["pull", "resolve", "push"]
+        skip_verify = true
+  become: true
+
+- name: Add zot.local to /etc/hosts
+  lineinfile:
+    path: /etc/hosts
+    line: "192.168.56.23  zot.local"
+    state: present
+  become: true
+# ─────────────────────────────────────────────────────────────────────────────
+
 - name: Restart and enable containerd
   systemd:
     name: containerd
